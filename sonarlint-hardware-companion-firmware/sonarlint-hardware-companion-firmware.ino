@@ -32,6 +32,9 @@ uint8_t currentState;
 
 uint8_t currentRunningLed = 0;
 
+boolean flag;
+int b;
+
 void setup() {
   CircuitPlayground.begin();
   CircuitPlayground.setBrightness(50);
@@ -45,6 +48,8 @@ void setup() {
 
   message.reserve(200);
   currentState = STATE_IDLE;
+  flag = false;
+  b = 0;
 }
 
 void loop() {
@@ -68,6 +73,8 @@ void loop() {
 
   if (currentState == STATE_RUNNING) {
     animateLed();
+  } else if(currentState == STATE_FINISHED && flag == true) {
+    play();
   }
 
   if (Serial.available() > 0) {
@@ -136,6 +143,12 @@ void showIssueRatios() {
     filledInfo = fillPixelsWith(filledHint, ratioOfInfo, 0xffff00);
     fillPixelsWith(filledInfo, ratioOfWarning, 0xff0000);
   }
+  if (numberOfHints == 0 && numberOfInfo == 0 && numberOfWarning != 0) {
+    flag = true;
+    b = 0;
+  } else {
+    flag = false;
+  }
 }
 
 uint8_t fillPixelsWith(uint8_t startPixel, float ratio, uint32_t color) {
@@ -156,4 +169,63 @@ void setAllPixels(uint32_t color) {
   for (uint8_t pixel = 0; pixel < PIXEL_COUNT; pixel ++) {
     CircuitPlayground.setPixelColor(pixel, color);
   }
+}
+
+#define  a3f    208     // 208 Hz
+#define  b3f    233     // 233 Hz
+#define  b3     247     // 247 Hz
+#define  c4     261     // 261 Hz MIDDLE C
+#define  c4s    277     // 277 Hz
+#define  e4f    311     // 311 Hz
+#define  f4     349     // 349 Hz
+#define  a4f    415     // 415 Hz
+#define  b4f    466     // 466 Hz
+#define  b4     493     // 493 Hz
+#define  c5     523     // 523 Hz
+#define  c5s    554     // 554 Hz
+#define  e5f    622     // 622 Hz
+#define  f5     698     // 698 Hz
+#define  f5s    740     // 740 Hz
+#define  a5f    831     // 831 Hz
+
+#define rest    -1
+
+volatile int beatlength = 40; // determines tempo
+float beatseparationconstant = 0.1;
+
+int song1_chorus_melody[] =
+{ b4f, b4f, a4f, a4f,
+  f5, f5, e5f, b4f, b4f, a4f, a4f, e5f, e5f, c5s, c5, b4f,
+  c5s, c5s, c5s, c5s,
+  c5s, e5f, c5, b4f, a4f, a4f, a4f, e5f, c5s,
+  b4f, b4f, a4f, a4f,
+  f5, f5, e5f, b4f, b4f, a4f, a4f, a5f, c5, c5s, c5, b4f,
+  c5s, c5s, c5s, c5s,
+  c5s, e5f, c5, b4f, a4f, rest, a4f, e5f, c5s, rest
+};
+
+int song1_chorus_rhythmn[] =
+{ 1, 1, 1, 1,
+  3, 3, 6, 1, 1, 1, 1, 3, 3, 3, 1, 2,
+  1, 1, 1, 1,
+  3, 3, 3, 1, 2, 2, 2, 4, 8,
+  1, 1, 1, 1,
+  3, 3, 6, 1, 1, 1, 1, 3, 3, 3, 1, 2,
+  1, 1, 1, 1,
+  3, 3, 3, 1, 2, 2, 2, 4, 8, 4
+};
+
+void play() {
+  int notelength;
+  // chorus
+  notelength = beatlength * song1_chorus_rhythmn[b];
+  if (song1_chorus_melody[b] > 0) {
+    CircuitPlayground.playTone(song1_chorus_melody[b], notelength);
+  }
+  b++;
+  if (b >= sizeof(song1_chorus_melody) / sizeof(int)) {
+    b = 0;
+  }
+  delay(notelength);
+  delay(notelength * beatseparationconstant);
 }
