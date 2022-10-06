@@ -22,6 +22,16 @@
 
 #define PIXEL_COUNT 10
 
+String message = "";
+boolean messageReceived = false;
+
+uint8_t currentState;
+#define STATE_IDLE 0
+#define STATE_RUNNING 1
+#define STATE_FINISHED 2
+
+uint8_t currentRunningLed = 0;
+
 void setup() {
   CircuitPlayground.begin();
   CircuitPlayground.setBrightness(50);
@@ -32,52 +42,99 @@ void setup() {
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
+
+  message.reserve(200);
+  currentState = STATE_IDLE;
 }
 
 void loop() {
-  String message;
+
+  if (messageReceived) {
+    // message has format '<# of Hint> <# of Info> <# of Warning>'
+    // read # of Hint
+    Serial.println(message);
+
+    if (message.startsWith("S")) {
+      currentState = STATE_RUNNING;
+    } else if(message.startsWith("E")) {
+      currentState = STATE_FINISHED;
+
+      showIssueRatios();
+    }
+
+    message = "";
+    messageReceived = false;
+  }
+
+  if (currentState == STATE_RUNNING) {
+    animateLed();
+  }
+
+  if (Serial.available() > 0) {
+    readFromSerial();
+  }
+}
+
+void readFromSerial() {
+  while (Serial.available() > 0) {
+    char inChar = (char)Serial.read();
+    message += inChar;
+    if (inChar == '\n') {
+      messageReceived = true;
+    }
+  }
+}
+
+void animateLed() {
+  for (uint8_t pixel = 0; pixel < PIXEL_COUNT; pixel ++) {
+    if (pixel == currentRunningLed) {
+      CircuitPlayground.setPixelColor(pixel, 0xffffff);
+    } else {
+      CircuitPlayground.setPixelColor(pixel, 0x000000);
+    }
+  }
+  currentRunningLed = (currentRunningLed + 1) % PIXEL_COUNT;
+  delay(100);
+}
+
+void showIssueRatios() {
+  message = message.substring(message.indexOf(' ') + 1);
+
   int indexOfSpace1;
   int indexOfSpace2;
   int numberOfHints, numberOfInfo, numberOfWarning, total;
   float ratioOfHints, ratioOfInfo, ratioOfWarning;
   int filledHint, filledInfo;
 
-  if (Serial.available() > 0) {
-    message = Serial.readString();
+  indexOfSpace1 = message.indexOf(' ');
+  numberOfHints = message.substring(0, indexOfSpace1).toInt();
+  // read # of Info
+  Serial.println(message.substring(indexOfSpace1 + 1));
+  indexOfSpace2 = message.indexOf(' ', indexOfSpace1 + 1);
+  numberOfInfo = message.substring(indexOfSpace1 + 1, indexOfSpace2).toInt();
+  // read # of Warning
+  Serial.println(message.substring(indexOfSpace2 + 1));
+  numberOfWarning = message.substring(indexOfSpace2 + 1).toInt();
 
-    // message has format '<# of Hint> <# of Info> <# of Warning>'
-    // read # of Hint
-    Serial.println(message);
-    indexOfSpace1 = message.indexOf(' ');
-    numberOfHints = message.substring(0, indexOfSpace1).toInt();
-    // read # of Info
-    Serial.println(message.substring(indexOfSpace1 + 1));
-    indexOfSpace2 = message.indexOf(' ', indexOfSpace1 + 1);
-    numberOfInfo = message.substring(indexOfSpace1 + 1, indexOfSpace2).toInt();
-    // read # of Warning
-    Serial.println(message.substring(indexOfSpace2 + 1));
-    numberOfWarning = message.substring(indexOfSpace2 + 1).toInt();
+  total = numberOfHints + numberOfInfo + numberOfWarning;
+  Serial.print("H: ");
+  Serial.print(numberOfHints);
+  Serial.print(" / I: ");
+  Serial.print(numberOfInfo);
+  Serial.print(" / W: ");
+  Serial.print(numberOfWarning);
+  Serial.print(" / T: ");
+  Serial.println(total);
+  if (total == 0) {
+    setAllPixels(0x00ff00);
+  } else {
+    ratioOfHints = 1.0 * numberOfHints / total;
+    ratioOfInfo = 1.0 * numberOfInfo / total;
+    ratioOfWarning = 1.0 * numberOfWarning / total;
 
-    total = numberOfHints + numberOfInfo + numberOfWarning;
-    Serial.print("H: ");
-    Serial.print(numberOfHints);
-    Serial.print(" / I: ");
-    Serial.print(numberOfInfo);
-    Serial.print(" / W: ");
-    Serial.print(numberOfWarning);
-    Serial.print(" / T: ");
-    Serial.println(total);
-    if (total == 0) {
-      setAllPixels(0x00ff00);
-    } else {
-      ratioOfHints = 1.0 * numberOfHints / total;
-      ratioOfInfo = 1.0 * numberOfInfo / total;
-      ratioOfWarning = 1.0 * numberOfWarning / total;
-
-      filledHint = fillPixelsWith(0, ratioOfHints, 0x0000ff);
-      filledInfo = fillPixelsWith(filledHint, ratioOfInfo, 0xffff00);
-      fillPixelsWith(filledInfo, ratioOfWarning, 0xff0000);
-    }
+    filledHint = fillPixelsWith(0, ratioOfHints, 0x0000ff);
+    filledInfo = fillPixelsWith(filledHint, ratioOfInfo, 0xffff00);
+    fillPixelsWith(filledInfo, ratioOfWarning, 0xff0000);
   }
 }
 
